@@ -17,7 +17,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.padding
 
 @Composable
-fun HomeScreen(onLogFoodClick: () -> Unit) {
+fun HomeScreen(
+    onLogFoodClick: () -> Unit,
+    onWidgetSettingsClick: () -> Unit
+) {
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -47,6 +50,12 @@ fun HomeScreen(onLogFoodClick: () -> Unit) {
 
         Button(onClick = onLogFoodClick) {
             Text("Log Food")
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Button(onClick = onWidgetSettingsClick) {
+            Text("Widget Tema")
         }
     }
 }

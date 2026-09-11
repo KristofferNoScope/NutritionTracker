@@ -12,7 +12,6 @@ import androidx.glance.background
 import androidx.glance.color.ColorProvider
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
-import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
@@ -20,37 +19,45 @@ import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
+import kotlinx.coroutines.flow.first
 
 class NutritionWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: android.content.Context, id: GlanceId) {
+        val repository = WidgetSettingsRepository(context)
+        val theme = repository.theme.first()
+
+        android.util.Log.d("WidgetUpdate", "Widget reading theme: $theme")
+
+        val backgroundColor = when (theme) {
+            WidgetTheme.WHITE -> Color.White
+            WidgetTheme.BLACK -> Color.Black
+            WidgetTheme.TRANSPARENT -> Color.Transparent
+        }
+        val textColor = when (theme) {
+            WidgetTheme.WHITE -> Color.Black
+            WidgetTheme.BLACK, WidgetTheme.TRANSPARENT -> Color.White
+        }
+
         provideContent {
             Column(
                 modifier = GlanceModifier
                     .fillMaxSize()
-                    .background(ColorProvider(day = Color.Transparent, night = Color.Transparent))
+                    .background(ColorProvider(day = backgroundColor, night = backgroundColor))
                     .padding(12.dp)
             ) {
                 Text(
                     text = "Dagens gång",
                     style = TextStyle(
                         fontWeight = FontWeight.Bold,
-                        color = ColorProvider(day = Color.White, night = Color.White)
+                        color = ColorProvider(day = textColor, night = textColor)
                     )
                 )
 
-                Spacer(modifier = GlanceModifier.height(4.dp))
-
-                ProgressBar(label = "Km", current = 3.2f, target = 5.0f, color = Color(0xFF9C27B0), isDecimal = true)
-
-                Spacer(modifier = GlanceModifier.height(10.dp))
-
-                ProgressBar(label = "Kcal", current = 1200f, target = 2000f, color = Color(0xFF4CAF50))
-                Spacer(modifier = GlanceModifier.height(6.dp))
-                ProgressBar(label = "Protein", current = 50f, target = 120f, color = Color(0xFF2196F3))
-                Spacer(modifier = GlanceModifier.height(6.dp))
-                ProgressBar(label = "Kolhydrater", current = 80f, target = 250f, color = Color(0xFFFFC107))
-                Spacer(modifier = GlanceModifier.height(6.dp))
-                ProgressBar(label = "Fett", current = 30f, target = 70f, color = Color(0xFFF44336))
+                ProgressBar(label = "Km", current = 3.2f, target = 5.0f, color = Color(0xFF9C27B0), textColor = textColor, isDecimal = true, topPadding = 4.dp)
+                ProgressBar(label = "Kcal", current = 1200f, target = 2000f, color = Color(0xFF4CAF50), textColor = textColor, topPadding = 10.dp)
+                ProgressBar(label = "Protein", current = 50f, target = 120f, color = Color(0xFF2196F3), textColor = textColor, topPadding = 6.dp)
+                ProgressBar(label = "Kolhydrater", current = 80f, target = 250f, color = Color(0xFFFFC107), textColor = textColor, topPadding = 6.dp)
+                ProgressBar(label = "Fett", current = 30f, target = 70f, color = Color(0xFFF44336), textColor = textColor, topPadding = 6.dp)
             }
         }
     }
@@ -62,7 +69,9 @@ private fun ProgressBar(
     current: Float,
     target: Float,
     color: Color,
-    isDecimal: Boolean = false
+    textColor: Color,
+    isDecimal: Boolean = false,
+    topPadding: androidx.compose.ui.unit.Dp = 6.dp
 ) {
     val progress = (current / target).coerceIn(0f, 1f)
     val totalBarWidth = 200.dp
@@ -74,12 +83,12 @@ private fun ProgressBar(
         "$label: ${current.toInt()}/${target.toInt()}"
     }
 
-    Column {
+    Column(modifier = GlanceModifier.padding(top = topPadding)) {
         Text(
             text = valueText,
             style = TextStyle(
                 fontSize = 11.sp,
-                color = ColorProvider(day = Color.White, night = Color.White)
+                color = ColorProvider(day = textColor, night = textColor)
             )
         )
         Box(

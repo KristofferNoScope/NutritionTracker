@@ -37,12 +37,22 @@ fun AppNavigation() {
 
     NavHost(navController = navController, startDestination = "home") {
         composable("home") {
-            HomeScreen(onLogFoodClick = {
-                navController.navigate("food_log")
-            })
+            HomeScreen(
+                onLogFoodClick = {
+                    navController.navigate("food_log")
+                },
+                onWidgetSettingsClick = {
+                    navController.navigate("widget_settings")
+                }
+            )
         }
         composable("food_log") {
             FoodLogScreen()
+        }
+        composable("widget_settings") {
+            WidgetSettingsScreen(onBackClick = {
+                navController.popBackStack()
+            })
         }
     }
 }
