@@ -6,7 +6,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.color.ColorProvider
@@ -20,6 +22,7 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import kotlinx.coroutines.flow.first
+import android.content.Intent
 
 class NutritionWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: android.content.Context, id: GlanceId) {
@@ -44,6 +47,7 @@ class NutritionWidget : GlanceAppWidget() {
                     .fillMaxSize()
                     .background(ColorProvider(day = backgroundColor, night = backgroundColor))
                     .padding(12.dp)
+                    .clickable(actionStartActivity(Intent(context, MainActivity::class.java)))
             ) {
                 Text(
                     text = "Dagens gång",

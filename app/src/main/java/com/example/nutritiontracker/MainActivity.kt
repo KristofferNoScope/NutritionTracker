@@ -47,7 +47,9 @@ fun AppNavigation() {
             )
         }
         composable("food_log") {
-            FoodLogScreen()
+            FoodLogScreen(onBackClick = {
+                navController.popBackStack()
+            })
         }
         composable("widget_settings") {
             WidgetSettingsScreen(onBackClick = {
