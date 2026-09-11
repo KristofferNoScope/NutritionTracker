@@ -1,17 +1,22 @@
 package com.example.nutritiontracker
 
+import android.content.Context
+import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.datastore.preferences.core.Preferences
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.state.PreferencesGlanceStateDefinition
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.color.ColorProvider
+import androidx.glance.currentState
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.fillMaxSize
@@ -21,27 +26,29 @@ import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
-import kotlinx.coroutines.flow.first
-import android.content.Intent
 
 class NutritionWidget : GlanceAppWidget() {
-    override suspend fun provideGlance(context: android.content.Context, id: GlanceId) {
-        val repository = WidgetSettingsRepository(context)
-        val theme = repository.theme.first()
 
-        android.util.Log.d("WidgetUpdate", "Widget reading theme: $theme")
+    // Glance sköter nu lagring och synk av temat internt - ingen egen DataStore behövs.
+    override val stateDefinition = PreferencesGlanceStateDefinition
 
-        val backgroundColor = when (theme) {
-            WidgetTheme.WHITE -> Color.White
-            WidgetTheme.BLACK -> Color.Black
-            WidgetTheme.TRANSPARENT -> Color.Transparent
-        }
-        val textColor = when (theme) {
-            WidgetTheme.WHITE -> Color.Black
-            WidgetTheme.BLACK, WidgetTheme.TRANSPARENT -> Color.White
-        }
-
+    override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
+            val prefs = currentState<Preferences>()
+            val theme = WidgetTheme.entries.find {
+                it.name == prefs[WidgetSettingsKeys.THEME_KEY]
+            } ?: WidgetTheme.WHITE
+
+            val backgroundColor = when (theme) {
+                WidgetTheme.WHITE -> Color.White
+                WidgetTheme.BLACK -> Color.Black
+                WidgetTheme.TRANSPARENT -> Color.Transparent
+            }
+            val textColor = when (theme) {
+                WidgetTheme.WHITE -> Color.Black
+                WidgetTheme.BLACK, WidgetTheme.TRANSPARENT -> Color.White
+            }
+
             Column(
                 modifier = GlanceModifier
                     .fillMaxSize()

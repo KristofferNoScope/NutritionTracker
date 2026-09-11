@@ -21,7 +21,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,45 +35,70 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.glance.appwidget.GlanceAppWidgetManager
-import kotlinx.coroutines.delay
+import androidx.glance.state.PreferencesGlanceStateDefinition
+import androidx.glance.appwidget.state.getAppWidgetState
+import androidx.glance.appwidget.state.updateAppWidgetState
 import kotlinx.coroutines.launch
 
 @Composable
 fun WidgetSettingsScreen(onBackClick: () -> Unit) {
     val context = LocalContext.current
-    val repository = remember { WidgetSettingsRepository(context.applicationContext) }
     val scope = rememberCoroutineScope()
 
-    val savedTheme by repository.theme.collectAsState(initial = WidgetTheme.WHITE)
-    var selectedTheme by remember(savedTheme) { mutableStateOf(savedTheme) }
+    var selectedTheme by remember { mutableStateOf(WidgetTheme.WHITE) }
     var isUpdating by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    // Läs nuvarande tema direkt från widgetens Glance-state när skärmen öppnas.
+    LaunchedEffect(Unit) {
+        try {
+            val manager = GlanceAppWidgetManager(context.applicationContext)
+            val firstId = manager.getGlanceIds(NutritionWidget::class.java).firstOrNull()
+
+            if (firstId != null) {
+                val prefs = getAppWidgetState(
+                    context.applicationContext,
+                    PreferencesGlanceStateDefinition,
+                    firstId
+                )
+                selectedTheme = WidgetTheme.entries.find {
+                    it.name == prefs[WidgetSettingsKeys.THEME_KEY]
+                } ?: WidgetTheme.WHITE
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("WidgetUpdate", "Failed to load widget theme", e)
+        } finally {
+            isLoading = false
+        }
+    }
 
     fun selectTheme(theme: WidgetTheme) {
         if (isUpdating) return
 
+        val previousTheme = selectedTheme
         selectedTheme = theme
         isUpdating = true
 
         scope.launch {
             try {
-                repository.saveTheme(theme)
-
                 val manager = GlanceAppWidgetManager(context.applicationContext)
                 val glanceIds = manager.getGlanceIds(NutritionWidget::class.java)
 
                 glanceIds.forEach { glanceId ->
+                    updateAppWidgetState(
+                        context.applicationContext,
+                        PreferencesGlanceStateDefinition,
+                        glanceId
+                    ) { prefs ->
+                        prefs.toMutablePreferences().apply {
+                            this[WidgetSettingsKeys.THEME_KEY] = theme.name
+                        }
+                    }
                     NutritionWidget().update(context.applicationContext, glanceId)
                 }
-
-                delay(1200)
-
-                glanceIds.forEach { glanceId ->
-                    NutritionWidget().update(context.applicationContext, glanceId)
-                }
-
-                delay(300)
             } catch (e: Exception) {
                 android.util.Log.e("WidgetUpdate", "Failed to update widget", e)
+                selectedTheme = previousTheme
             } finally {
                 isUpdating = false
             }
@@ -105,7 +130,7 @@ fun WidgetSettingsScreen(onBackClick: () -> Unit) {
             Box(contentAlignment = Alignment.Center) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.alpha(if (isUpdating) 0.3f else 1f)
+                    modifier = Modifier.alpha(if (isUpdating || isLoading) 0.3f else 1f)
                 ) {
                     ThemeOptionBox(
                         label = "Vitt",
@@ -127,7 +152,7 @@ fun WidgetSettingsScreen(onBackClick: () -> Unit) {
                     )
                 }
 
-                if (isUpdating) {
+                if (isUpdating || isLoading) {
                     CircularProgressIndicator()
                 }
             }
