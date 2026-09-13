@@ -26,6 +26,8 @@ import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
+import kotlinx.coroutines.flow.first
+import kotlin.math.roundToInt
 
 class NutritionWidget : GlanceAppWidget() {
 
@@ -33,6 +35,21 @@ class NutritionWidget : GlanceAppWidget() {
     override val stateDefinition = PreferencesGlanceStateDefinition
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        // Fetch real data before composing - these are one-shot reads (not live streams),
+        // since the widget only re-renders when explicitly updated or on the periodic
+        // system refresh, not continuously like the app screen.
+        val foodRepository = FoodRepository(context)
+        val stepsRepository = StepsRepository(context)
+
+        val todaysEntries = foodRepository.getLogEntriesForDate(todayDateString()).first()
+        val totalKcal = todaysEntries.sumOf { it.kcal.toDouble() }.roundToInt()
+        val totalProtein = todaysEntries.sumOf { it.protein.toDouble() }.roundToInt()
+        val totalFat = todaysEntries.sumOf { it.fat.toDouble() }.roundToInt()
+        val totalCarbs = todaysEntries.sumOf { it.carbs.toDouble() }.roundToInt()
+
+        val todaySteps = stepsRepository.getTodaySteps()
+        val currentKm = todaySteps * STRIDE_LENGTH_KM
+
         provideContent {
             val prefs = currentState<Preferences>()
             val theme = WidgetTheme.entries.find {
@@ -64,11 +81,11 @@ class NutritionWidget : GlanceAppWidget() {
                     )
                 )
 
-                ProgressBar(label = "Km", current = 3.2f, target = 5.0f, color = Color(0xFF9C27B0), textColor = textColor, isDecimal = true, topPadding = 4.dp)
-                ProgressBar(label = "Kcal", current = 1200f, target = 2000f, color = Color(0xFF4CAF50), textColor = textColor, topPadding = 10.dp)
-                ProgressBar(label = "Protein", current = 50f, target = 120f, color = Color(0xFF2196F3), textColor = textColor, topPadding = 6.dp)
-                ProgressBar(label = "Carbs", current = 80f, target = 250f, color = Color(0xFFFFC107), textColor = textColor, topPadding = 6.dp)
-                ProgressBar(label = "Fat", current = 30f, target = 70f, color = Color(0xFFF44336), textColor = textColor, topPadding = 6.dp)
+                ProgressBar(label = "Km", current = currentKm, target = DAILY_KM_TARGET, color = Color(0xFF9C27B0), textColor = textColor, isDecimal = true, topPadding = 4.dp)
+                ProgressBar(label = "Kcal", current = totalKcal.toFloat(), target = DAILY_KCAL_TARGET.toFloat(), color = Color(0xFF4CAF50), textColor = textColor, topPadding = 10.dp)
+                ProgressBar(label = "Protein", current = totalProtein.toFloat(), target = DAILY_PROTEIN_TARGET_G.toFloat(), color = Color(0xFF2196F3), textColor = textColor, topPadding = 6.dp)
+                ProgressBar(label = "Carbs", current = totalCarbs.toFloat(), target = DAILY_CARBS_TARGET_G.toFloat(), color = Color(0xFFFFC107), textColor = textColor, topPadding = 6.dp)
+                ProgressBar(label = "Fat", current = totalFat.toFloat(), target = DAILY_FAT_TARGET_G.toFloat(), color = Color(0xFFF44336), textColor = textColor, topPadding = 6.dp)
             }
         }
     }

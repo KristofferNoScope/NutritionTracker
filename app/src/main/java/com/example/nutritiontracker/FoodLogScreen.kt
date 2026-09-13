@@ -45,13 +45,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import kotlin.time.Duration.Companion.milliseconds
-
-private fun todayDateString(): String =
-    SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
 @Composable
 fun FoodLogScreen(onBackClick: () -> Unit) {
@@ -92,7 +85,7 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
             return@LaunchedEffect
         }
         isSearching = true
-        delay(300.milliseconds)
+        delay(300)
         searchResults = repository.searchFoods(searchQuery)
         isSearching = false
     }
@@ -122,6 +115,7 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
                 gramsInput = ""
                 searchQuery = ""
                 searchResults = emptyList()
+                updateNutritionWidgets(context.applicationContext)
             } catch (e: Exception) {
                 android.util.Log.e("FoodLog", "Failed to log food", e)
                 errorMessage = "Couldn't log this food: ${e.message}"
@@ -328,7 +322,10 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
                             FoodLogEntryRow(
                                 entry = entry,
                                 onDelete = {
-                                    scope.launch { repository.deleteLogEntry(entry) }
+                                    scope.launch {
+                                        repository.deleteLogEntry(entry)
+                                        updateNutritionWidgets(context.applicationContext)
+                                    }
                                 }
                             )
                             HorizontalDivider()

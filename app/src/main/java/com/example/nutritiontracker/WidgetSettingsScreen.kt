@@ -95,8 +95,8 @@ fun WidgetSettingsScreen(onBackClick: () -> Unit) {
                             this[WidgetSettingsKeys.THEME_KEY] = theme.name
                         }
                     }
-                    NutritionWidget().update(context.applicationContext, glanceId)
                 }
+                updateNutritionWidgets(context.applicationContext)
             } catch (e: Exception) {
                 android.util.Log.e("WidgetUpdate", "Failed to update widget", e)
                 selectedTheme = previousTheme
