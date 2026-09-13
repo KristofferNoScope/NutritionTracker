@@ -19,6 +19,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -46,6 +48,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.time.Duration.Companion.milliseconds
 
 private fun todayDateString(): String =
     SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
@@ -68,6 +71,7 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val todaysEntries by repository.getLogEntriesForDate(today).collectAsState(initial = emptyList())
+    val favorites by repository.getFavorites().collectAsState(initial = emptyList())
 
     // Load the food item cache once, the first time this screen is opened.
     LaunchedEffect(Unit) {
@@ -88,7 +92,7 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
             return@LaunchedEffect
         }
         isSearching = true
-        delay(300)
+        delay(300.milliseconds)
         searchResults = repository.searchFoods(searchQuery)
         isSearching = false
     }
@@ -166,7 +170,7 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
                         searchQuery = it
                         selectedFood = null
                     },
-                    label = { Text("Search food") },
+                    label = { Text("Search food (Swedish)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     trailingIcon = {
@@ -186,6 +190,35 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall
                     )
+                }
+
+                // Show favorites for quick access when the user hasn't typed a search yet.
+                if (searchQuery.isBlank() && selectedFood == null && favorites.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("Favorites", style = MaterialTheme.typography.titleSmall)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
+                        items(favorites) { favorite ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectedFood = FoodItem(favorite.nummer, favorite.namn)
+                                        errorMessage = null
+                                    }
+                                    .padding(vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Star,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Text(favorite.namn, modifier = Modifier.padding(start = 8.dp))
+                            }
+                            HorizontalDivider()
+                        }
+                    }
                 }
 
                 if (selectedFood == null && searchResults.isNotEmpty()) {
@@ -209,6 +242,8 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
                 }
 
                 selectedFood?.let { food ->
+                    val isFavorite by repository.isFavorite(food.nummer).collectAsState(initial = false)
+
                     Spacer(modifier = Modifier.height(12.dp))
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp)) {
@@ -217,7 +252,26 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(food.namn, style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    food.namn,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(onClick = {
+                                    scope.launch {
+                                        if (isFavorite) {
+                                            repository.removeFavorite(food.nummer)
+                                        } else {
+                                            repository.addFavorite(food.nummer, food.namn)
+                                        }
+                                    }
+                                }) {
+                                    Icon(
+                                        imageVector = if (isFavorite) Icons.Filled.Star else Icons.Outlined.StarOutline,
+                                        contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                                        tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                                 IconButton(onClick = {
                                     selectedFood = null
                                     gramsInput = ""

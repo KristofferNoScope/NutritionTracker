@@ -1,6 +1,7 @@
 package com.example.nutritiontracker
 
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.flow.Flow
 
 // EuroFIR codes for the nutrients we display in the app (see the API documentation).
@@ -8,6 +9,9 @@ private const val CODE_KCAL = "ENERC"
 private const val CODE_PROTEIN = "PROT"
 private const val CODE_FAT = "FAT"
 private const val CODE_CARBS = "CHO"
+
+// Number of items requested per page while paging through the full food list.
+private const val PAGE_SIZE = 200
 
 data class NutrientsPer100g(
     val kcal: Float,
@@ -22,42 +26,57 @@ class FoodRepository(context: Context) {
     private val api = NetworkModule.livsmedelsverketApi
 
     /**
-     * Fetches the full food list from the API and caches it locally,
-     * but only if the cache is empty (typically the first time the app is used).
+     * Fetches the full food list from the API (paging through all results, since the API
+     * only returns a limited number of items per request) and caches it locally, but only
+     * if the cache is empty (typically the first time the app is used).
      */
     suspend fun ensureFoodCacheLoaded() {
-        if (dao.getFoodItemCount() == 0) {
-            val rawJson = api.getAllFoodsRaw().string()
-            val array = JsonHelpers.findFirstJsonArray(rawJson)
+        val existingCount = dao.getFoodItemCount()
+        Log.d("FoodLog", "Existing cache count: $existingCount")
+        if (existingCount > 0) return
 
-            val items = mutableListOf<FoodItem>()
-            for (i in 0 until array.length()) {
-                val obj = array.getJSONObject(i)
-                val nummer = obj.optInt("Nummer", -1)
-                val namn = obj.optString("Namn", "")
+        val allItems = mutableListOf<FoodItem>()
+        var offset = 0
+
+        while (true) {
+            val rawJson = api.getAllFoodsRaw(limit = PAGE_SIZE, offset = offset).string()
+            val dataArray = JsonHelpers.findDataArray(rawJson)
+            Log.d("FoodLog", "Page at offset $offset returned ${dataArray.length()} entries")
+
+            for (i in 0 until dataArray.length()) {
+                val obj = dataArray.getJSONObject(i)
+                val nummer = obj.optInt("nummer", -1)
+                val namn = obj.optString("namn", "")
                 if (nummer != -1 && namn.isNotBlank()) {
-                    items.add(FoodItem(nummer = nummer, namn = namn))
+                    allItems.add(FoodItem(nummer = nummer, namn = namn))
                 }
             }
-            dao.insertFoodItems(items)
+
+            if (dataArray.length() < PAGE_SIZE) break
+            offset += PAGE_SIZE
         }
+
+        Log.d("FoodLog", "Total parsed: ${allItems.size} food items")
+        dao.insertFoodItems(allItems)
     }
 
     suspend fun searchFoods(query: String): List<FoodItem> {
         if (query.isBlank()) return emptyList()
-        return dao.searchFoodItems(query)
+        val results = dao.searchFoodItems(query)
+        Log.d("FoodLog", "Search for '$query' returned ${results.size} results")
+        return results
     }
 
     /** Fetches nutrient values per 100g for a specific food item directly from the API. */
     suspend fun getNutrientsPer100g(nummer: Int): NutrientsPer100g {
         val rawJson = api.getNutrientsRaw(nummer).string()
-        val array = JsonHelpers.findFirstJsonArray(rawJson)
+        val array = JsonHelpers.findDataArray(rawJson)
 
         fun valueFor(code: String): Float {
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
-                if (obj.optString("EuroFIRkod") == code) {
-                    return obj.optDouble("Varde", 0.0).toFloat()
+                if (obj.optString("euroFIRkod") == code) {
+                    return obj.optDouble("varde", 0.0).toFloat()
                 }
             }
             return 0f
@@ -98,4 +117,15 @@ class FoodRepository(context: Context) {
 
     fun getLogEntriesForDate(date: String): Flow<List<FoodLogEntry>> =
         dao.getLogEntriesForDate(date)
+
+    // --- Favorites ---
+
+    suspend fun addFavorite(nummer: Int, namn: String) =
+        dao.insertFavorite(FavoriteFood(nummer = nummer, namn = namn))
+
+    suspend fun removeFavorite(nummer: Int) = dao.deleteFavoriteByNummer(nummer)
+
+    fun getFavorites(): Flow<List<FavoriteFood>> = dao.getFavorites()
+
+    fun isFavorite(nummer: Int): Flow<Boolean> = dao.isFavorite(nummer)
 }
