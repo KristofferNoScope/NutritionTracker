@@ -42,8 +42,8 @@ fun HomeScreen(
         ) {
             NutrientRing(label = "Kcal", current = 1200, target = 2000, color = Color(0xFF4CAF50))
             NutrientRing(label = "Protein", current = 50, target = 120, color = Color(0xFF2196F3))
-            NutrientRing(label = "Kolhydrater", current = 80, target = 250, color = Color(0xFFFFC107))
-            NutrientRing(label = "Fett", current = 30, target = 70, color = Color(0xFFF44336))
+            NutrientRing(label = "Carbs", current = 80, target = 250, color = Color(0xFFFFC107))
+            NutrientRing(label = "Fat", current = 30, target = 70, color = Color(0xFFF44336))
         }
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -55,7 +55,7 @@ fun HomeScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         Button(onClick = onWidgetSettingsClick) {
-            Text("Widget Tema")
+            Text("Widget Theme")
         }
     }
 }

@@ -31,7 +31,7 @@ fun StepProgressBar(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "Dagens gång",
+                text = "Today's Steps",
                 style = MaterialTheme.typography.labelMedium
             )
             Text(

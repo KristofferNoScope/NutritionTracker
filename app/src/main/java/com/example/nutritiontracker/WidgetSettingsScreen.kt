@@ -22,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,7 +50,7 @@ fun WidgetSettingsScreen(onBackClick: () -> Unit) {
     var isUpdating by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(true) }
 
-    // Läs nuvarande tema direkt från widgetens Glance-state när skärmen öppnas.
+    // Read the current theme directly from the widget's Glance state when this screen opens.
     LaunchedEffect(Unit) {
         try {
             val manager = GlanceAppWidgetManager(context.applicationContext)
@@ -110,10 +111,10 @@ fun WidgetSettingsScreen(onBackClick: () -> Unit) {
             IconButton(onClick = onBackClick) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Tillbaka"
+                    contentDescription = "Back"
                 )
             }
-            Text("Widget Teman")
+            Text("Widget Theme")
         }
 
         Column(
@@ -123,7 +124,7 @@ fun WidgetSettingsScreen(onBackClick: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text("Välj bakgrund")
+            Text("Choose background")
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -133,13 +134,13 @@ fun WidgetSettingsScreen(onBackClick: () -> Unit) {
                     modifier = Modifier.alpha(if (isUpdating || isLoading) 0.3f else 1f)
                 ) {
                     ThemeOptionBox(
-                        label = "Vitt",
+                        label = "White",
                         boxColor = Color.White,
                         isSelected = selectedTheme == WidgetTheme.WHITE,
                         onClick = { selectTheme(WidgetTheme.WHITE) }
                     )
                     ThemeOptionBox(
-                        label = "Svart",
+                        label = "Black",
                         boxColor = Color.Black,
                         isSelected = selectedTheme == WidgetTheme.BLACK,
                         onClick = { selectTheme(WidgetTheme.BLACK) }

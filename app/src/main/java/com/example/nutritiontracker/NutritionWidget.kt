@@ -29,7 +29,7 @@ import androidx.glance.text.TextStyle
 
 class NutritionWidget : GlanceAppWidget() {
 
-    // Glance sköter nu lagring och synk av temat internt - ingen egen DataStore behövs.
+    // Glance handles storing and syncing the theme internally - no custom DataStore needed.
     override val stateDefinition = PreferencesGlanceStateDefinition
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
@@ -57,7 +57,7 @@ class NutritionWidget : GlanceAppWidget() {
                     .clickable(actionStartActivity(Intent(context, MainActivity::class.java)))
             ) {
                 Text(
-                    text = "Dagens gång",
+                    text = "Today's Steps",
                     style = TextStyle(
                         fontWeight = FontWeight.Bold,
                         color = ColorProvider(day = textColor, night = textColor)
@@ -67,8 +67,8 @@ class NutritionWidget : GlanceAppWidget() {
                 ProgressBar(label = "Km", current = 3.2f, target = 5.0f, color = Color(0xFF9C27B0), textColor = textColor, isDecimal = true, topPadding = 4.dp)
                 ProgressBar(label = "Kcal", current = 1200f, target = 2000f, color = Color(0xFF4CAF50), textColor = textColor, topPadding = 10.dp)
                 ProgressBar(label = "Protein", current = 50f, target = 120f, color = Color(0xFF2196F3), textColor = textColor, topPadding = 6.dp)
-                ProgressBar(label = "Kolhydrater", current = 80f, target = 250f, color = Color(0xFFFFC107), textColor = textColor, topPadding = 6.dp)
-                ProgressBar(label = "Fett", current = 30f, target = 70f, color = Color(0xFFF44336), textColor = textColor, topPadding = 6.dp)
+                ProgressBar(label = "Carbs", current = 80f, target = 250f, color = Color(0xFFFFC107), textColor = textColor, topPadding = 6.dp)
+                ProgressBar(label = "Fat", current = 30f, target = 70f, color = Color(0xFFF44336), textColor = textColor, topPadding = 6.dp)
             }
         }
     }
