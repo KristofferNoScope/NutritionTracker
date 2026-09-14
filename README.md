@@ -21,4 +21,5 @@ Grant permissions when prompted on first run: Internet (automatic) and Activity 
 To see the widget, add it to your home screen after installing the app — long-press the home screen → Widgets → NutritionTracker.
 
 ***Bugs***
+
 **Widget refresh can lag by a log or two.** The app explicitly triggers a widget refresh after logging/deleting food, changing settings, and opening the home screen (plus a short delayed follow-up call as a safety net), but Android's widget host occasionally drops one of these requests when several fire in quick succession (e.g. deleting several entries back to back). The underlying data is always correct — only the widget's display can briefly lag. It always catches up within a log or two, or at the latest on the periodic 30-minute system refresh. This appears to be a platform-level timing quirk rather than something fixable purely from the app side.
