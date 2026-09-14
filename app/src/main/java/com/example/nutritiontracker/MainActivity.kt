@@ -46,6 +46,9 @@ fun AppNavigation() {
                 },
                 onNutritionGoalsClick = {
                     navController.navigate("nutrition_goals")
+                },
+                onWeightLogClick = {
+                    navController.navigate("weight_log")
                 }
             )
         }
@@ -61,6 +64,11 @@ fun AppNavigation() {
         }
         composable("nutrition_goals") {
             TargetsSettingsScreen(onBackClick = {
+                navController.popBackStack()
+            })
+        }
+        composable("weight_log") {
+            WeightScreen(onBackClick = {
                 navController.popBackStack()
             })
         }

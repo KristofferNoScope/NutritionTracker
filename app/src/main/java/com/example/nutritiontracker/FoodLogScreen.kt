@@ -17,10 +17,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarOutline
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -30,6 +34,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -51,7 +56,9 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
     val context = LocalContext.current
     val repository = remember { FoodRepository(context.applicationContext) }
     val scope = rememberCoroutineScope()
-    val today = remember { todayDateString() }
+
+    var selectedDate by remember { mutableStateOf(todayDateString()) }
+    val isToday = selectedDate == todayDateString()
 
     var isCacheLoading by remember { mutableStateOf(true) }
     var searchQuery by remember { mutableStateOf("") }
@@ -63,7 +70,10 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
     var isLogging by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    val todaysEntries by repository.getLogEntriesForDate(today).collectAsState(initial = emptyList())
+    var editingEntry by remember { mutableStateOf<FoodLogEntry?>(null) }
+    var editGramsInput by remember { mutableStateOf("") }
+
+    val dayEntries by repository.getLogEntriesForDate(selectedDate).collectAsState(initial = emptyList())
     val favorites by repository.getFavorites().collectAsState(initial = emptyList())
 
     // Load the food item cache once, the first time this screen is opened.
@@ -108,7 +118,7 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
                     foodNummer = food.nummer,
                     foodName = food.namn,
                     grams = grams,
-                    date = today,
+                    date = selectedDate,
                     per100g = per100g
                 )
                 selectedFood = null
@@ -307,20 +317,41 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
-                Text("Today", style = MaterialTheme.typography.titleSmall)
+
+                // Date navigation: browse to previous/next days.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { selectedDate = shiftDate(selectedDate, -1) }) {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous day")
+                    }
+                    Text(formatDateForDisplay(selectedDate), style = MaterialTheme.typography.titleSmall)
+                    IconButton(
+                        onClick = { selectedDate = shiftDate(selectedDate, 1) },
+                        enabled = !isToday
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next day")
+                    }
+                }
                 Spacer(modifier = Modifier.height(8.dp))
 
-                if (todaysEntries.isEmpty()) {
+                if (dayEntries.isEmpty()) {
                     Text(
-                        "Nothing logged yet today.",
+                        "Nothing logged for this day.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
                     LazyColumn {
-                        items(todaysEntries) { entry ->
+                        items(dayEntries) { entry ->
                             FoodLogEntryRow(
                                 entry = entry,
+                                onEdit = {
+                                    editingEntry = entry
+                                    editGramsInput = entry.grams.toString()
+                                },
                                 onDelete = {
                                     scope.launch {
                                         repository.deleteLogEntry(entry)
@@ -335,10 +366,49 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
             }
         }
     }
+
+    editingEntry?.let { entry ->
+        AlertDialog(
+            onDismissRequest = { editingEntry = null },
+            title = { Text("Edit amount") },
+            text = {
+                Column {
+                    Text(entry.foodName, style = MaterialTheme.typography.bodyMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = editGramsInput,
+                        onValueChange = { editGramsInput = it },
+                        label = { Text("Amount (grams)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val newGrams = editGramsInput.toFloatOrNull()
+                    if (newGrams != null && newGrams > 0f) {
+                        scope.launch {
+                            repository.updateLogEntryGrams(entry, newGrams)
+                            updateNutritionWidgets(context.applicationContext)
+                        }
+                        editingEntry = null
+                    }
+                }) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingEntry = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 @Composable
-private fun FoodLogEntryRow(entry: FoodLogEntry, onDelete: () -> Unit) {
+private fun FoodLogEntryRow(entry: FoodLogEntry, onEdit: () -> Unit, onDelete: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -355,6 +425,9 @@ private fun FoodLogEntryRow(entry: FoodLogEntry, onDelete: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+        IconButton(onClick = onEdit) {
+            Icon(Icons.Default.Edit, contentDescription = "Edit amount")
         }
         IconButton(onClick = onDelete) {
             Icon(Icons.Default.Delete, contentDescription = "Delete")

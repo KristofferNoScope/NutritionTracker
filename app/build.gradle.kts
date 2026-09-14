@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp") version "2.2.10-2.0.2"
 }
 
@@ -36,6 +37,12 @@ android {
     }
 }
 
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+    }
+}
+
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
@@ -60,8 +67,7 @@ dependencies {
     implementation("androidx.room:room-runtime:2.7.1")
     implementation("androidx.room:room-ktx:2.7.1")
     ksp("androidx.room:room-compiler:2.7.1")
-// Retrofit + Moshi (network)
+// Retrofit
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
-    implementation("com.squareup.retrofit2:converter-moshi:2.11.0")
-    implementation("com.squareup.moshi:moshi-kotlin:1.15.1")
+    implementation("org.jetbrains.kotlin:kotlin-reflect:2.2.10")
 }

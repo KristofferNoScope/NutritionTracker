@@ -1,6 +1,5 @@
 package com.example.nutritiontracker
 
-import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -34,7 +33,8 @@ import kotlin.math.roundToInt
 fun HomeScreen(
     onLogFoodClick: () -> Unit,
     onWidgetSettingsClick: () -> Unit,
-    onNutritionGoalsClick: () -> Unit
+    onNutritionGoalsClick: () -> Unit,
+    onWeightLogClick: () -> Unit
 ) {
     val context = LocalContext.current
     val foodRepository = remember { FoodRepository(context.applicationContext) }
@@ -58,7 +58,7 @@ fun HomeScreen(
             Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
                     ContextCompat.checkSelfPermission(
                         context,
-                        Manifest.permission.ACTIVITY_RECOGNITION
+                        "android.permission.ACTIVITY_RECOGNITION"
                     ) == PackageManager.PERMISSION_GRANTED
         )
     }
@@ -71,12 +71,19 @@ fun HomeScreen(
 
     LaunchedEffect(Unit) {
         if (!hasStepsPermission) {
-            permissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+            permissionLauncher.launch("android.permission.ACTIVITY_RECOGNITION")
         }
     }
 
     val todaySteps = rememberTodaySteps(enabled = hasStepsPermission)
     val currentKm = todaySteps * STRIDE_LENGTH_KM
+
+    // Keep the widget in sync whenever the home screen is shown (app opened, or
+    // navigated back to from another screen), in addition to the direct-trigger
+    // updates that already happen after logging food or changing settings.
+    LaunchedEffect(Unit) {
+        updateNutritionWidgets(context.applicationContext)
+    }
 
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -133,6 +140,12 @@ fun HomeScreen(
 
         Button(onClick = onNutritionGoalsClick) {
             Text("Nutrition Goals")
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Button(onClick = onWeightLogClick) {
+            Text("Log Weight")
         }
 
         Spacer(modifier = Modifier.height(12.dp))

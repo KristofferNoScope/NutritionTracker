@@ -113,6 +113,25 @@ class FoodRepository(context: Context) {
         )
     }
 
+    /**
+     * Updates an existing entry to a new gram amount, rescaling its already-stored nutrient
+     * values proportionally rather than re-fetching from the API (faster, and avoids a
+     * network dependency just to edit a number).
+     */
+    suspend fun updateLogEntryGrams(entry: FoodLogEntry, newGrams: Float) {
+        if (entry.grams <= 0f || newGrams <= 0f) return
+        val factor = newGrams / entry.grams
+        dao.updateLogEntry(
+            entry.copy(
+                grams = newGrams,
+                kcal = entry.kcal * factor,
+                protein = entry.protein * factor,
+                fat = entry.fat * factor,
+                carbs = entry.carbs * factor
+            )
+        )
+    }
+
     suspend fun deleteLogEntry(entry: FoodLogEntry) = dao.deleteLogEntry(entry)
 
     fun getLogEntriesForDate(date: String): Flow<List<FoodLogEntry>> =
