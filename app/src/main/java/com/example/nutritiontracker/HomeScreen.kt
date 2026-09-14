@@ -33,13 +33,18 @@ import kotlin.math.roundToInt
 @Composable
 fun HomeScreen(
     onLogFoodClick: () -> Unit,
-    onWidgetSettingsClick: () -> Unit
+    onWidgetSettingsClick: () -> Unit,
+    onNutritionGoalsClick: () -> Unit
 ) {
     val context = LocalContext.current
-    val repository = remember { FoodRepository(context.applicationContext) }
+    val foodRepository = remember { FoodRepository(context.applicationContext) }
+    val targetsRepository = remember { UserTargetsRepository(context.applicationContext) }
     val today = remember { todayDateString() }
 
-    val todaysEntries by repository.getLogEntriesForDate(today).collectAsState(initial = emptyList())
+    val todaysEntries by foodRepository.getLogEntriesForDate(today).collectAsState(initial = emptyList())
+    val targets by targetsRepository.effectiveTargets.collectAsState(
+        initial = NutrientTargets(kcal = 2000, proteinG = 120, fatG = 70, carbsG = 250)
+    )
 
     val totalKcal = todaysEntries.sumOf { it.kcal.toDouble() }.roundToInt()
     val totalProtein = todaysEntries.sumOf { it.protein.toDouble() }.roundToInt()
@@ -95,25 +100,25 @@ fun HomeScreen(
             NutrientRing(
                 label = "Kcal",
                 current = totalKcal,
-                target = DAILY_KCAL_TARGET,
+                target = targets.kcal,
                 color = Color(0xFF4CAF50)
             )
             NutrientRing(
                 label = "Protein",
                 current = totalProtein,
-                target = DAILY_PROTEIN_TARGET_G,
+                target = targets.proteinG,
                 color = Color(0xFF2196F3)
             )
             NutrientRing(
                 label = "Carbs",
                 current = totalCarbs,
-                target = DAILY_CARBS_TARGET_G,
+                target = targets.carbsG,
                 color = Color(0xFFFFC107)
             )
             NutrientRing(
                 label = "Fat",
                 current = totalFat,
-                target = DAILY_FAT_TARGET_G,
+                target = targets.fatG,
                 color = Color(0xFFF44336)
             )
         }
@@ -122,6 +127,12 @@ fun HomeScreen(
 
         Button(onClick = onLogFoodClick) {
             Text("Log Food")
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Button(onClick = onNutritionGoalsClick) {
+            Text("Nutrition Goals")
         }
 
         Spacer(modifier = Modifier.height(12.dp))

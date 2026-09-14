@@ -43,6 +43,9 @@ fun AppNavigation() {
                 },
                 onWidgetSettingsClick = {
                     navController.navigate("widget_settings")
+                },
+                onNutritionGoalsClick = {
+                    navController.navigate("nutrition_goals")
                 }
             )
         }
@@ -53,6 +56,11 @@ fun AppNavigation() {
         }
         composable("widget_settings") {
             WidgetSettingsScreen(onBackClick = {
+                navController.popBackStack()
+            })
+        }
+        composable("nutrition_goals") {
+            TargetsSettingsScreen(onBackClick = {
                 navController.popBackStack()
             })
         }
