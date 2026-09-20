@@ -2,10 +2,12 @@ package com.example.nutritiontracker
 
 import android.content.Context
 import android.util.Log
+import org.json.JSONArray
 import kotlinx.coroutines.flow.Flow
 
 // EuroFIR codes for the nutrients we display in the app (see the API documentation).
-private const val CODE_KCAL = "ENERC"
+private const val CODE_KCAL = "ENERC" // energy code; appears twice (kJ and kcal), see energyKcal()
+private const val KJ_TO_KCAL = 0.239f
 private const val CODE_PROTEIN = "PROT"
 private const val CODE_FAT = "FAT"
 private const val CODE_CARBS = "CHO"
@@ -83,11 +85,43 @@ class FoodRepository(context: Context) {
         }
 
         return NutrientsPer100g(
-            kcal = valueFor(CODE_KCAL),
+            kcal = energyKcal(array),
             protein = valueFor(CODE_PROTEIN),
             fat = valueFor(CODE_FAT),
             carbs = valueFor(CODE_CARBS)
         )
+    }
+
+    /**
+     * The API returns energy as TWO rows sharing the same EuroFIR code (ENERC): one in kJ and
+     * one in kcal. Taking the first match used to return kJ, which was then stored as kcal.
+     * Here we identify the row by its unit instead, and fall back to converting from kJ
+     * (kcal = kJ * 0.239, the factor Livsmedelsverket itself uses) if no kcal row exists.
+     */
+    private fun energyKcal(array: JSONArray): Float {
+        var kcalValue: Float? = null
+        var kjValue: Float? = null
+
+        for (i in 0 until array.length()) {
+            val obj = array.getJSONObject(i)
+            if (obj.optString("euroFIRkod") != CODE_KCAL) continue
+
+            // Look at every field that might describe the unit, since the exact field name
+            // isn't documented. Lowercased so "kcal", "Kcal" and "Energi (kcal)" all match.
+            val descriptor = listOf("enhet", "unit", "namn", "name")
+                .joinToString(" ") { obj.optString(it, "") }
+                .lowercase()
+            val value = obj.optDouble("varde", 0.0).toFloat()
+
+            Log.d("FoodLog", "ENERC row: $descriptor -> $value")
+
+            when {
+                "kcal" in descriptor -> if (kcalValue == null) kcalValue = value
+                "kj" in descriptor -> if (kjValue == null) kjValue = value
+            }
+        }
+
+        return kcalValue ?: kjValue?.let { it * KJ_TO_KCAL } ?: 0f
     }
 
     /** Logs a meal: converts nutrient values from per-100g to the actual amount and saves it. */
