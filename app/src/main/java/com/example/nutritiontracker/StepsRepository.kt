@@ -34,6 +34,11 @@ private val Context.stepsDataStore by preferencesDataStore(name = "steps_tracker
 private object StepsKeys {
     val BASELINE_DATE = stringPreferencesKey("baseline_date")
     val BASELINE_STEPS = longPreferencesKey("baseline_steps")
+
+    // Last step count we successfully calculated, so the widget has something real to show
+    // when it can't get a fresh sensor reading.
+    val LAST_KNOWN_DATE = stringPreferencesKey("last_known_date")
+    val LAST_KNOWN_STEPS = longPreferencesKey("last_known_steps")
 }
 
 /**
@@ -55,19 +60,30 @@ class StepsRepository(private val context: Context) {
             context.stepsDataStore.edit { prefs ->
                 prefs[StepsKeys.BASELINE_DATE] = today
                 prefs[StepsKeys.BASELINE_STEPS] = sensorTotalSteps
+                prefs[StepsKeys.LAST_KNOWN_DATE] = today
+                prefs[StepsKeys.LAST_KNOWN_STEPS] = 0L
             }
             return 0L
         }
 
-        return sensorTotalSteps - baselineSteps
+        val steps = sensorTotalSteps - baselineSteps
+
+        // Only write when the value actually changed, since the app calls this on every step.
+        if (prefs[StepsKeys.LAST_KNOWN_DATE] != today || prefs[StepsKeys.LAST_KNOWN_STEPS] != steps) {
+            context.stepsDataStore.edit { prefs ->
+                prefs[StepsKeys.LAST_KNOWN_DATE] = today
+                prefs[StepsKeys.LAST_KNOWN_STEPS] = steps
+            }
+        }
+        return steps
     }
 
     /**
-     * Takes a single reading from the step counter sensor and waits (up to 3s) for the
+     * Takes a single reading from the step counter sensor and waits (up to 5s) for the
      * first callback. Used by the widget, which runs briefly and can't keep a listener
      * registered like the app screen does.
      */
-    private suspend fun getCurrentRawStepCount(): Long? = withTimeoutOrNull(3000) {
+    private suspend fun getCurrentRawStepCount(): Long? = withTimeoutOrNull(5000) {
         suspendCancellableCoroutine { cont ->
             val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
             val stepSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
@@ -86,15 +102,28 @@ class StepsRepository(private val context: Context) {
                 override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
             }
 
-            sensorManager.registerListener(listener, stepSensor, SensorManager.SENSOR_DELAY_NORMAL)
+            sensorManager.registerListener(listener, stepSensor, SensorManager.SENSOR_DELAY_FASTEST)
             cont.invokeOnCancellation { sensorManager.unregisterListener(listener) }
         }
     }
 
-    /** One-shot read of today's step count, for use in short-lived contexts like the widget. */
+    /**
+     * One-shot read of today's step count, for use in short-lived contexts like the widget.
+     *
+     * The step counter only reports when the step count changes, so a quick one-shot read often
+     * gets no callback at all while the app is closed. Returning 0 in that case made the widget
+     * show "0.0 km" until the app was opened. Instead we fall back to the last count we knew.
+     */
     suspend fun getTodaySteps(): Long {
-        val raw = getCurrentRawStepCount() ?: return 0L
-        return getTodayStepsFromSensorTotal(raw)
+        val raw = getCurrentRawStepCount()
+        if (raw != null) return getTodayStepsFromSensorTotal(raw)
+
+        val prefs = context.stepsDataStore.data.first()
+        return if (prefs[StepsKeys.LAST_KNOWN_DATE] == todayDateString()) {
+            prefs[StepsKeys.LAST_KNOWN_STEPS] ?: 0L
+        } else {
+            0L
+        }
     }
 }
 
