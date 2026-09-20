@@ -3,6 +3,8 @@ package com.example.nutritiontracker
 import android.content.Context
 import android.util.Log
 import org.json.JSONArray
+import org.json.JSONObject
+import retrofit2.HttpException
 import kotlinx.coroutines.flow.Flow
 
 // EuroFIR codes for the nutrients we display in the app (see the API documentation).
@@ -15,6 +17,9 @@ private const val CODE_CARBS = "CHO"
 // Number of items requested per page while paging through the full food list.
 private const val PAGE_SIZE = 200
 
+// Log entries for scanned products have no Livsmedelsverket number, so they get this placeholder.
+const val SCANNED_FOOD_NUMMER = -1
+
 data class NutrientsPer100g(
     val kcal: Float,
     val protein: Float,
@@ -22,10 +27,18 @@ data class NutrientsPer100g(
     val carbs: Float
 )
 
+/** A packaged product found by barcode on Open Food Facts. */
+data class ScannedProduct(
+    val barcode: String,
+    val name: String,
+    val per100g: NutrientsPer100g
+)
+
 class FoodRepository(context: Context) {
 
     private val dao = AppDatabase.getInstance(context).foodDao()
     private val api = NetworkModule.livsmedelsverketApi
+    private val offApi = NetworkModule.openFoodFactsApi
 
     /**
      * Fetches the full food list from the API (paging through all results, since the API
@@ -122,6 +135,54 @@ class FoodRepository(context: Context) {
         }
 
         return kcalValue ?: kjValue?.let { it * KJ_TO_KCAL } ?: 0f
+    }
+
+    /**
+     * Looks up a packaged product by barcode on Open Food Facts.
+     * Returns null if the barcode isn't in the database. Throws if the product exists
+     * but has no nutrition data (common, since the data is community-contributed).
+     */
+    suspend fun lookupBarcode(barcode: String): ScannedProduct? {
+        val rawJson = try {
+            offApi.getProductRaw(barcode, fields = "product_name,brands,nutriments").string()
+        } catch (e: HttpException) {
+            if (e.code() == 404) return null else throw e
+        }
+
+        val root = JSONObject(rawJson)
+        // A missing barcode still returns HTTP 200; the real result flag is "status" in the body.
+        if (root.optInt("status", 0) != 1) return null
+        val product = root.optJSONObject("product") ?: return null
+        val nutriments = product.optJSONObject("nutriments")
+
+        fun value(key: String): Float? =
+            if (nutriments != null && nutriments.has(key) && !nutriments.isNull(key)) {
+                nutriments.optDouble(key).takeUnless { it.isNaN() }?.toFloat()
+            } else null
+
+        // "energy-kcal_100g" is kcal. Plain "energy_100g" is kJ, so it needs converting.
+        val kcal = value("energy-kcal_100g") ?: value("energy_100g")?.let { it * KJ_TO_KCAL }
+        ?: throw IllegalStateException("This product has no nutrition data on Open Food Facts.")
+
+        val productName = product.optString("product_name", "").trim()
+        val brand = product.optString("brands", "").split(",").firstOrNull()?.trim().orEmpty()
+        val displayName = when {
+            productName.isNotEmpty() && brand.isNotEmpty() -> "$productName ($brand)"
+            productName.isNotEmpty() -> productName
+            brand.isNotEmpty() -> brand
+            else -> "Product $barcode"
+        }
+
+        return ScannedProduct(
+            barcode = barcode,
+            name = displayName,
+            per100g = NutrientsPer100g(
+                kcal = kcal,
+                protein = value("proteins_100g") ?: 0f,
+                fat = value("fat_100g") ?: 0f,
+                carbs = value("carbohydrates_100g") ?: 0f
+            )
+        )
     }
 
     /** Logs a meal: converts nutrient values from per-100g to the actual amount and saves it. */

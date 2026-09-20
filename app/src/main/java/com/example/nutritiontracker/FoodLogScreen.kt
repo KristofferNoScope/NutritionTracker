@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.AlertDialog
@@ -32,6 +33,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -48,6 +50,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -66,6 +71,9 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
     var isSearching by remember { mutableStateOf(false) }
 
     var selectedFood by remember { mutableStateOf<FoodItem?>(null) }
+    // Set when the selected food came from a barcode scan (selectedFood.nummer == SCANNED_FOOD_NUMMER).
+    var scannedProduct by remember { mutableStateOf<ScannedProduct?>(null) }
+    var isLookingUp by remember { mutableStateOf(false) }
     var gramsInput by remember { mutableStateOf("") }
     var isLogging by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -113,7 +121,12 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
 
         scope.launch {
             try {
-                val per100g = repository.getNutrientsPer100g(food.nummer)
+                val scanned = scannedProduct
+                val per100g = if (food.nummer == SCANNED_FOOD_NUMMER && scanned != null) {
+                    scanned.per100g
+                } else {
+                    repository.getNutrientsPer100g(food.nummer)
+                }
                 repository.logFood(
                     foodNummer = food.nummer,
                     foodName = food.namn,
@@ -133,6 +146,51 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
                 isLogging = false
             }
         }
+    }
+
+    fun lookUpBarcode(barcode: String) {
+        isLookingUp = true
+        errorMessage = null
+        scope.launch {
+            try {
+                val product = repository.lookupBarcode(barcode)
+                if (product == null) {
+                    errorMessage = "No product found for barcode $barcode."
+                } else {
+                    scannedProduct = product
+                    selectedFood = FoodItem(SCANNED_FOOD_NUMMER, product.name)
+                    gramsInput = ""
+                    searchQuery = ""
+                    searchResults = emptyList()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("FoodLog", "Barcode lookup failed", e)
+                errorMessage = "Couldn't look up this product: ${e.message}"
+            } finally {
+                isLookingUp = false
+            }
+        }
+    }
+
+    // Google's code scanner shows its own camera UI, so no camera permission is needed.
+    fun startBarcodeScan() {
+        val options = GmsBarcodeScannerOptions.Builder()
+            .setBarcodeFormats(
+                Barcode.FORMAT_EAN_13,
+                Barcode.FORMAT_EAN_8,
+                Barcode.FORMAT_UPC_A,
+                Barcode.FORMAT_UPC_E
+            )
+            .build()
+        GmsBarcodeScanning.getClient(context, options)
+            .startScan()
+            .addOnSuccessListener { barcode ->
+                barcode.rawValue?.let { lookUpBarcode(it) }
+            }
+            .addOnFailureListener { e ->
+                android.util.Log.e("FoodLog", "Barcode scanner failed", e)
+                errorMessage = "Couldn't start the scanner: ${e.message}"
+            }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -194,6 +252,27 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall
                     )
+                }
+
+                // Barcode scanning: look up packaged products instead of typing the name.
+                if (selectedFood == null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = { startBarcodeScan() },
+                        enabled = !isLookingUp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (isLookingUp) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Text("Looking up product...", modifier = Modifier.padding(start = 8.dp))
+                        } else {
+                            Icon(Icons.Filled.QrCodeScanner, contentDescription = null)
+                            Text("Scan barcode", modifier = Modifier.padding(start = 8.dp))
+                        }
+                    }
                 }
 
                 // Show favorites for quick access when the user hasn't typed a search yet.
@@ -261,7 +340,7 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
                                     style = MaterialTheme.typography.titleSmall,
                                     modifier = Modifier.weight(1f)
                                 )
-                                IconButton(onClick = {
+                                if (food.nummer != SCANNED_FOOD_NUMMER) IconButton(onClick = {
                                     scope.launch {
                                         if (isFavorite) {
                                             repository.removeFavorite(food.nummer)

@@ -70,4 +70,6 @@ dependencies {
 // Retrofit
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("org.jetbrains.kotlin:kotlin-reflect:2.2.10")
+    // Barcode scanning via Google Play services (no camera permission needed)
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
 }

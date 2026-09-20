@@ -1,5 +1,6 @@
 package com.example.nutritiontracker
 
+import okhttp3.OkHttpClient
 import okhttp3.ResponseBody
 import org.json.JSONArray
 import org.json.JSONObject
@@ -17,6 +18,35 @@ object NetworkModule {
             .build()
             .create(LivsmedelsverketApi::class.java)
     }
+
+    // Open Food Facts asks every client to identify itself with a custom User-Agent.
+    val openFoodFactsApi: OpenFoodFactsApi by lazy {
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                chain.proceed(
+                    chain.request().newBuilder()
+                        .header("User-Agent", "NutritionTracker/1.0 (Android)")
+                        .build()
+                )
+            }
+            .build()
+
+        Retrofit.Builder()
+            .baseUrl("https://world.openfoodfacts.org/")
+            .client(client)
+            .build()
+            .create(OpenFoodFactsApi::class.java)
+    }
+}
+
+interface OpenFoodFactsApi {
+
+    // Raw JSON again, parsed by hand in FoodRepository (same approach as the Livsmedelsverket API).
+    @GET("api/v2/product/{barcode}.json")
+    suspend fun getProductRaw(
+        @Path("barcode") barcode: String,
+        @Query("fields") fields: String
+    ): ResponseBody
 }
 
 interface LivsmedelsverketApi {
