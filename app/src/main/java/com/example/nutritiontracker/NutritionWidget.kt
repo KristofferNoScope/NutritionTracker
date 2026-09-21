@@ -50,6 +50,7 @@ class NutritionWidget : GlanceAppWidget() {
         val totalCarbs = todaysEntries.sumOf { it.carbs.toDouble() }.roundToInt()
 
         val targets = targetsRepository.getEffectiveTargetsOnce()
+        val stepGoalKm = targetsRepository.getStepGoalKmOnce()
 
         val todaySteps = stepsRepository.getTodaySteps()
         val currentKm = todaySteps * STRIDE_LENGTH_KM
@@ -85,7 +86,7 @@ class NutritionWidget : GlanceAppWidget() {
                     )
                 )
 
-                ProgressBar(label = "Km", current = currentKm, target = DAILY_KM_TARGET, color = Color(0xFF9C27B0), textColor = textColor, isDecimal = true, topPadding = 4.dp)
+                ProgressBar(label = "Km", current = currentKm, target = stepGoalKm, color = Color(0xFF9C27B0), textColor = textColor, isDecimal = true, topPadding = 4.dp)
                 ProgressBar(label = "Kcal", current = totalKcal.toFloat(), target = targets.kcal.toFloat(), color = Color(0xFF4CAF50), textColor = textColor, topPadding = 10.dp)
                 ProgressBar(label = "Protein", current = totalProtein.toFloat(), target = targets.proteinG.toFloat(), color = Color(0xFF2196F3), textColor = textColor, topPadding = 6.dp)
                 ProgressBar(label = "Carbs", current = totalCarbs.toFloat(), target = targets.carbsG.toFloat(), color = Color(0xFFFFC107), textColor = textColor, topPadding = 6.dp)

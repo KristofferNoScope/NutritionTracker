@@ -34,6 +34,7 @@ fun HomeScreen(
     onLogFoodClick: () -> Unit,
     onWidgetSettingsClick: () -> Unit,
     onNutritionGoalsClick: () -> Unit,
+    onStepGoalClick: () -> Unit,
     onWeightLogClick: () -> Unit
 ) {
     val context = LocalContext.current
@@ -45,6 +46,7 @@ fun HomeScreen(
     val targets by targetsRepository.effectiveTargets.collectAsState(
         initial = NutrientTargets(kcal = 2000, proteinG = 120, fatG = 70, carbsG = 250)
     )
+    val stepGoalKm by targetsRepository.stepGoalKm.collectAsState(initial = DAILY_KM_TARGET)
 
     val totalKcal = todaysEntries.sumOf { it.kcal.toDouble() }.roundToInt()
     val totalProtein = todaysEntries.sumOf { it.protein.toDouble() }.roundToInt()
@@ -92,7 +94,7 @@ fun HomeScreen(
     ) {
         StepProgressBar(
             currentKm = currentKm,
-            targetKm = DAILY_KM_TARGET,
+            targetKm = stepGoalKm,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
@@ -140,6 +142,12 @@ fun HomeScreen(
 
         Button(onClick = onNutritionGoalsClick) {
             Text("Nutrition Goals")
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Button(onClick = onStepGoalClick) {
+            Text("Set Daily Steps")
         }
 
         Spacer(modifier = Modifier.height(12.dp))

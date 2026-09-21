@@ -39,6 +39,8 @@ import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.state.PreferencesGlanceStateDefinition
 import androidx.glance.appwidget.state.getAppWidgetState
 import androidx.glance.appwidget.state.updateAppWidgetState
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 @Composable
@@ -47,8 +49,8 @@ fun WidgetSettingsScreen(onBackClick: () -> Unit) {
     val scope = rememberCoroutineScope()
 
     var selectedTheme by remember { mutableStateOf(WidgetTheme.WHITE) }
-    var isUpdating by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(true) }
+    var updateJob by remember { mutableStateOf<Job?>(null) }
 
     // Read the current theme directly from the widget's Glance state when this screen opens.
     LaunchedEffect(Unit) {
@@ -74,13 +76,16 @@ fun WidgetSettingsScreen(onBackClick: () -> Unit) {
     }
 
     fun selectTheme(theme: WidgetTheme) {
-        if (isUpdating) return
+        if (theme == selectedTheme) return
 
+        // The selection updates instantly; saving and redrawing the widget happens in the
+        // background. If another theme is tapped before that finishes, drop the old update
+        // so the last tap always wins.
         val previousTheme = selectedTheme
         selectedTheme = theme
-        isUpdating = true
+        updateJob?.cancel()
 
-        scope.launch {
+        updateJob = scope.launch {
             try {
                 val manager = GlanceAppWidgetManager(context.applicationContext)
                 val glanceIds = manager.getGlanceIds(NutritionWidget::class.java)
@@ -97,11 +102,11 @@ fun WidgetSettingsScreen(onBackClick: () -> Unit) {
                     }
                 }
                 updateNutritionWidgets(context.applicationContext)
+            } catch (e: CancellationException) {
+                throw e // a newer tap replaced this update, not an error
             } catch (e: Exception) {
                 android.util.Log.e("WidgetUpdate", "Failed to update widget", e)
                 selectedTheme = previousTheme
-            } finally {
-                isUpdating = false
             }
         }
     }
@@ -131,7 +136,7 @@ fun WidgetSettingsScreen(onBackClick: () -> Unit) {
             Box(contentAlignment = Alignment.Center) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.alpha(if (isUpdating || isLoading) 0.3f else 1f)
+                    modifier = Modifier.alpha(if (isLoading) 0.3f else 1f)
                 ) {
                     ThemeOptionBox(
                         label = "White",
@@ -153,7 +158,7 @@ fun WidgetSettingsScreen(onBackClick: () -> Unit) {
                     )
                 }
 
-                if (isUpdating || isLoading) {
+                if (isLoading) {
                     CircularProgressIndicator()
                 }
             }

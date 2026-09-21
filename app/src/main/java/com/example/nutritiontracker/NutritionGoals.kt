@@ -101,6 +101,7 @@ private object TargetKeys {
     val SEX = stringPreferencesKey("sex")
     val ACTIVITY_LEVEL = stringPreferencesKey("activity_level")
     val GOAL = stringPreferencesKey("goal")
+    val STEP_GOAL_KM = floatPreferencesKey("step_goal_km")
 }
 
 class UserTargetsRepository(private val context: Context) {
@@ -111,7 +112,8 @@ class UserTargetsRepository(private val context: Context) {
         val manualProteinG: Int,
         val manualFatG: Int,
         val manualCarbsG: Int,
-        val profile: UserProfile
+        val profile: UserProfile,
+        val stepGoalKm: Float
     )
 
     // Defaults match the app's original hardcoded values, so behavior is unchanged
@@ -132,7 +134,8 @@ class UserTargetsRepository(private val context: Context) {
                     it.name == prefs[TargetKeys.ACTIVITY_LEVEL]
                 } ?: ActivityLevel.MODERATE,
                 goal = Goal.entries.find { it.name == prefs[TargetKeys.GOAL] } ?: Goal.MAINTAIN
-            )
+            ),
+            stepGoalKm = prefs[TargetKeys.STEP_GOAL_KM] ?: DAILY_KM_TARGET
         )
     }
 
@@ -145,6 +148,11 @@ class UserTargetsRepository(private val context: Context) {
 
     /** One-shot read, for use in short-lived contexts like the widget. */
     suspend fun getEffectiveTargetsOnce(): NutrientTargets = effectiveTargets.first()
+
+    /** Daily distance goal in km. Independent of the nutrition target mode. */
+    val stepGoalKm: Flow<Float> = settings.map { it.stepGoalKm }
+
+    suspend fun getStepGoalKmOnce(): Float = stepGoalKm.first()
 
     suspend fun save(
         mode: TargetMode,
@@ -166,6 +174,12 @@ class UserTargetsRepository(private val context: Context) {
             prefs[TargetKeys.SEX] = profile.sex.name
             prefs[TargetKeys.ACTIVITY_LEVEL] = profile.activityLevel.name
             prefs[TargetKeys.GOAL] = profile.goal.name
+        }
+    }
+
+    suspend fun saveStepGoalKm(km: Float) {
+        context.userTargetsDataStore.edit { prefs ->
+            prefs[TargetKeys.STEP_GOAL_KM] = km
         }
     }
 }

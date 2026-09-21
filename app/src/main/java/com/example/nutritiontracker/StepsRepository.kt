@@ -22,7 +22,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 
-// Step/distance goal (not part of the nutrition targets feature, kept fixed for now).
+// Default step/distance goal in km. The user can change it under Nutrition Goals; this is the
+// starting value and the fallback if the saved value is missing or invalid.
 const val DAILY_KM_TARGET = 5.0f
 
 // Average distance covered per step, used to estimate km walked from the step count,
