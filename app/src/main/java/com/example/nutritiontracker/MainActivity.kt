@@ -19,6 +19,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Keeps the step baseline starting near midnight, even when the app is closed.
+        StepsWorker.schedule(applicationContext)
         setContent {
             NutritionTrackerTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -52,6 +54,9 @@ fun AppNavigation() {
                 },
                 onWeightLogClick = {
                     navController.navigate("weight_log")
+                },
+                onBackupClick = {
+                    navController.navigate("backup")
                 }
             )
         }
@@ -72,6 +77,11 @@ fun AppNavigation() {
         }
         composable("step_goal") {
             StepGoalScreen(onBackClick = {
+                navController.popBackStack()
+            })
+        }
+        composable("backup") {
+            BackupScreen(onBackClick = {
                 navController.popBackStack()
             })
         }

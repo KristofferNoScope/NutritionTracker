@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -48,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.google.mlkit.vision.barcode.common.Barcode
@@ -55,6 +58,13 @@ import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+// Log entries typed in by hand have no Livsmedelsverket number, so they get this placeholder
+// (-1 is used for scanned products). Foods added this way can't be favorited.
+private const val MANUAL_FOOD_NUMMER = -2
+
+// Accepts both "5.5" and "5,5", since many keyboards use a decimal comma.
+private fun parseNumber(text: String): Float? = text.trim().replace(',', '.').toFloatOrNull()
 
 @Composable
 fun FoodLogScreen(onBackClick: () -> Unit) {
@@ -80,6 +90,16 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
 
     var editingEntry by remember { mutableStateOf<FoodLogEntry?>(null) }
     var editGramsInput by remember { mutableStateOf("") }
+
+    // Manual entry dialog. All nutrient values are per 100 g, like the food database.
+    var showManualDialog by remember { mutableStateOf(false) }
+    var manualName by remember { mutableStateOf("") }
+    var manualGrams by remember { mutableStateOf("") }
+    var manualKcal by remember { mutableStateOf("") }
+    var manualProtein by remember { mutableStateOf("") }
+    var manualFat by remember { mutableStateOf("") }
+    var manualCarbs by remember { mutableStateOf("") }
+    var manualError by remember { mutableStateOf<String?>(null) }
 
     val dayEntries by repository.getLogEntriesForDate(selectedDate).collectAsState(initial = emptyList())
     val favorites by repository.getFavorites().collectAsState(initial = emptyList())
@@ -193,6 +213,81 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
             }
     }
 
+    fun clearManualForm() {
+        manualName = ""
+        manualGrams = ""
+        manualKcal = ""
+        manualProtein = ""
+        manualFat = ""
+        manualCarbs = ""
+        manualError = null
+    }
+
+    fun confirmManualLog() {
+        val name = manualName.trim()
+        val grams = parseNumber(manualGrams)
+        val kcal = parseNumber(manualKcal)
+        // Empty protein/fat/carbs fields count as 0, but anything typed must be a valid number.
+        val protein = if (manualProtein.isBlank()) 0f else parseNumber(manualProtein)
+        val fat = if (manualFat.isBlank()) 0f else parseNumber(manualFat)
+        val carbs = if (manualCarbs.isBlank()) 0f else parseNumber(manualCarbs)
+
+        if (name.isEmpty()) {
+            manualError = "Enter a name."
+            return
+        }
+        if (grams == null || grams <= 0f) {
+            manualError = "Enter a valid amount in grams."
+            return
+        }
+        if (kcal == null || kcal < 0f) {
+            manualError = "Enter the calories per 100 g."
+            return
+        }
+        if (protein == null || fat == null || carbs == null ||
+            protein < 0f || fat < 0f || carbs < 0f
+        ) {
+            manualError = "Protein, fat and carbs must be numbers, or left empty."
+            return
+        }
+        // 100 g of food can't contain more than 100 g of protein, fat and carbs combined.
+        // This catches values typed per portion instead of per 100 g.
+        if (protein + fat + carbs > 100.5f) {
+            manualError = "Protein, fat and carbs add up to more than 100 g. " +
+                    "Enter the values per 100 g."
+            return
+        }
+
+        isLogging = true
+        manualError = null
+
+        scope.launch {
+            try {
+                repository.logFood(
+                    foodNummer = MANUAL_FOOD_NUMMER,
+                    foodName = name,
+                    grams = grams,
+                    date = selectedDate,
+                    per100g = NutrientsPer100g(
+                        kcal = kcal,
+                        protein = protein,
+                        fat = fat,
+                        carbs = carbs
+                    )
+                )
+                clearManualForm()
+                showManualDialog = false
+                isLogging = false
+                updateNutritionWidgets(context.applicationContext)
+            } catch (e: Exception) {
+                android.util.Log.e("FoodLog", "Failed to log manual food", e)
+                manualError = "Couldn't log this food: ${e.message}"
+            } finally {
+                isLogging = false
+            }
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBackClick) {
@@ -272,6 +367,20 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
                             Icon(Icons.Filled.QrCodeScanner, contentDescription = null)
                             Text("Scan barcode", modifier = Modifier.padding(start = 8.dp))
                         }
+                    }
+
+                    // Manual entry: for foods that aren't in either database.
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            manualError = null
+                            errorMessage = null
+                            showManualDialog = true
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Filled.Edit, contentDescription = null)
+                        Text("Enter manually", modifier = Modifier.padding(start = 8.dp))
                     }
                 }
 
@@ -484,6 +593,75 @@ fun FoodLogScreen(onBackClick: () -> Unit) {
             }
         )
     }
+
+    if (showManualDialog) {
+        AlertDialog(
+            // Tapping outside keeps what was typed; the Cancel button clears it.
+            onDismissRequest = { showManualDialog = false },
+            title = { Text("Add food manually") },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    OutlinedTextField(
+                        value = manualName,
+                        onValueChange = { manualName = it },
+                        label = { Text("Name") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Sentences,
+                            keyboardType = KeyboardType.Text
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    ManualNumberField("Amount eaten (grams)", manualGrams) { manualGrams = it }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("Nutrition per 100 g", style = MaterialTheme.typography.labelLarge)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    ManualNumberField("Calories (kcal)", manualKcal) { manualKcal = it }
+                    ManualNumberField("Protein (g)", manualProtein) { manualProtein = it }
+                    ManualNumberField("Fat (g)", manualFat) { manualFat = it }
+                    ManualNumberField("Carbs (g)", manualCarbs) { manualCarbs = it }
+
+                    manualError?.let {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            it,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { confirmManualLog() }, enabled = !isLogging) {
+                    Text("Log")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    clearManualForm()
+                    showManualDialog = false
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun ManualNumberField(label: String, value: String, onValueChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    )
 }
 
 @Composable

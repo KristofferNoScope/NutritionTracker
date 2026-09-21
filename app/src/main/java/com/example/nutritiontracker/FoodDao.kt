@@ -61,4 +61,12 @@ interface FoodDao {
 
     @Query("SELECT * FROM food_log_entries WHERE date = :date ORDER BY id DESC")
     fun getLogEntriesForDate(date: String): Flow<List<FoodLogEntry>>
+
+    // --- Backup ---
+
+    @Query("SELECT * FROM food_log_entries ORDER BY date ASC, id ASC")
+    suspend fun getAllLogEntries(): List<FoodLogEntry>
+
+    @Insert
+    suspend fun insertLogEntries(entries: List<FoodLogEntry>)
 }

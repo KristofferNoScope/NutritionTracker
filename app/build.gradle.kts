@@ -72,4 +72,6 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect:2.2.10")
     // Barcode scanning via Google Play services (no camera permission needed)
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+    // Background step readings (see StepsWorker)
+    implementation("androidx.work:work-runtime-ktx:2.11.1")
 }

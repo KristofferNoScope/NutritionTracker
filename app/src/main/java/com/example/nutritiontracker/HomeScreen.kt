@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -35,7 +36,8 @@ fun HomeScreen(
     onWidgetSettingsClick: () -> Unit,
     onNutritionGoalsClick: () -> Unit,
     onStepGoalClick: () -> Unit,
-    onWeightLogClick: () -> Unit
+    onWeightLogClick: () -> Unit,
+    onBackupClick: () -> Unit
 ) {
     val context = LocalContext.current
     val foodRepository = remember { FoodRepository(context.applicationContext) }
@@ -160,6 +162,12 @@ fun HomeScreen(
 
         Button(onClick = onWidgetSettingsClick) {
             Text("Widget Theme")
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        TextButton(onClick = onBackupClick) {
+            Text("Backup")
         }
     }
 }
